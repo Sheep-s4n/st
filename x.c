@@ -1417,18 +1417,27 @@ bginit()
 			int rand_num =  rand() / (RAND_MAX / ++file_index + 1);
 			char* rdm_bg = files_names[rand_num];
 			int length = strlen(bgfolder);
+
+			int bgfile_path_length = strlen(bgfolder) + strlen(rdm_bg);
+			char* bgfile_path = (char*)malloc(sizeof(char) + bgfile_path_length + 1 );
+				
 			char pathEnd[2];
 		        strncpy(pathEnd , &bgfolder[length - 1], 2); // &bgfolder[length - 1] last char pointer 
 			if (strcmp(pathEnd , "/") == 0)
 			{
-				printf("%s%s\n" , bgfolder , rdm_bg);
+				strcpy(bgfile_path , bgfolder);
+				strcpy(bgfile_path + strlen(bgfolder) , rdm_bg);
 			} else
 			{	
-				printf("%s/%s\n" , bgfolder , rdm_bg);
+				strcpy(bgfile_path , bgfolder);
+				bgfile_path[strlen(bgfolder)] = '/';
+				strcpy(bgfile_path + strlen(bgfolder) + sizeof(char), rdm_bg);
 			};
-			bgxi = loadff(bgfile);
+			printf("%s\n" , bgfile_path);
+			bgxi = loadff(bgfile_path);
+			free(bgfile_path);
+			
 			// reserve more memory if there is > than 1000 strings
-			// concat file name with dir !!!
 		}
 		
 		free(files_names);
