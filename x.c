@@ -1,6 +1,8 @@
 /* See LICENSE for license details. */
 #define DT_REG 8
-
+#define DT_DIR 4
+#include <signal.h>
+#include <ctype.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -179,7 +181,7 @@ static void xinit(int, int);
 static void updatexy(void);
 static XImage *loadff(const char *);
 static void bgreload();
-static void bginit();
+static void bginit(bool has_USR1);
 static void cresize(int, int);
 static void xresize(int, int);
 static void xhints(void);
@@ -1349,7 +1351,7 @@ void
 bgreload()
 {
 	XFreeGC(xw.dpy, xw.bggc);
-	bginit();
+	bginit(true);
 	redraw();
 	signal(SIGUSR1, bgreload);
 }
@@ -1358,7 +1360,7 @@ bgreload()
  * initialize background image
  */
 void
-bginit()
+bginit(bool has_USR1)
 {
 	XGCValues gcvalues;
 	Drawable bgimg;
@@ -1370,7 +1372,7 @@ bginit()
 
 	if (use_random_bg)
 	{
-		char** files_names = malloc(sizeof(char*) * 1000); // space for 1000 string pointer
+		char** files_names = malloc(sizeof(char*) * 10000); // space for 10000 string pointer
 		if (files_names == NULL)
 		{
 			perror("Memory allocation for files_names failed");
@@ -1437,7 +1439,54 @@ bginit()
 			bgxi = loadff(bgfile_path);
 			free(bgfile_path);
 			
-			// reserve more memory if there is > than 1000 strings
+			// avoid resending signal if the function is triggered from a USR1
+			// send a USR1 to all st process:
+			// all st terminal will find the same wallpaper as the seed is based on time for randomness
+			DIR* p_dir;
+			struct dirent* process;
+			char line[256];
+
+			p_dir = opendir("/proc"); // open process directory
+			if (p_dir == NULL) 
+			{
+				printf("%f\n" , "error while openning the process directory");
+				return;
+			};
+			printf("send USR1 to others = %d\n ", !has_USR1);	
+			if (!has_USR1)
+			{
+				while ((process = readdir(p_dir)))
+				{
+					
+					if (process->d_type == DT_DIR && isdigit(process->d_name[0])) //check if it's a user process
+					{
+						// Read the cmdline file to check the command
+						snprintf(line, 256, "/proc/%s/cmdline", (char*)process->d_name);
+						FILE *cmdline = fopen(line, "r");
+						if (cmdline) {
+							// Read the command from the cmdline file
+							if (fgets(line, sizeof(line), cmdline)) {
+							    // Check if the command contains "st" (Simple Terminal)
+							    if (strcmp(line,"st") == 0) {
+								// Send the USR1 signal to the process
+								int pid = atoi((char*)process->d_name);
+								    
+								//if (pid > 0 && pid != getpid()) {
+								//    printf("Kill it !\n");
+								//    kill(pid, SIGUSR1);
+							        //}
+							    }
+							}
+						};
+					
+					
+						fclose(cmdline);
+					
+					};
+				};
+			}
+				       
+			closedir(p_dir);
 		}
 		
 		free(files_names);
@@ -2389,7 +2438,7 @@ run:
 	rows = MAX(rows, 1);
 	tnew(cols, rows);
 	xinit(cols, rows);
-	bginit();
+	bginit(false);
 	signal(SIGUSR1, bgreload);
 	xsetenv();
 	selinit();
